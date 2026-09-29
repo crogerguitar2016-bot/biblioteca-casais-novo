@@ -534,15 +534,8 @@ class BibliotecaCasais(BoxLayout):
                 Intent.FLAG_GRANT_READ_URI_PERMISSION
             )
 
-            chooser = (
-                Intent.createChooser(
-                    intent,
-                    "Abrir documento"
-                )
-            )
-
             activity.startActivity(
-                chooser
+                intent
             )
 
         except Exception as erro:
