@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+main_antes_abertura_documentos.py
+.buildozer/
+bin/
+main_antes_*.py

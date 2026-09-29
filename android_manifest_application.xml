@@ -1,0 +1,11 @@
+<provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:name="com.croger.bibliotecacasais.BibliotecaFileProvider"
+    android:authorities="com.croger.bibliotecacasais.fileprovider"
+    android:exported="false"
+    android:grantUriPermissions="true">
+
+    <meta-data
+        android:name="android.support.FILE_PROVIDER_PATHS"
+        android:resource="@xml/file_paths" />
+
+</provider>

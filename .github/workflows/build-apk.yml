@@ -1,0 +1,168 @@
+name: Gerar APK Biblioteca de Casais
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Baixar projeto
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Configurar Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Instalar dependências do sistema
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            git zip unzip wget curl \
+            autoconf libtool pkg-config \
+            zlib1g-dev libncurses5-dev \
+            libtinfo6 cmake libffi-dev \
+            libssl-dev automake autopoint \
+            gettext libltdl-dev
+
+      - name: Instalar Android SDK
+        run: |
+          mkdir -p "$HOME/android-sdk/cmdline-tools/latest"
+
+          cd "$HOME/android-sdk"
+
+          wget -q \
+            https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip
+
+          unzip -q \
+            commandlinetools-linux-13114758_latest.zip
+
+          cp -r \
+            cmdline-tools/* \
+            "$HOME/android-sdk/cmdline-tools/latest/" \
+            || true
+
+          echo "ANDROIDSDK=$HOME/android-sdk" >> "$GITHUB_ENV"
+          echo "ANDROID_HOME=$HOME/android-sdk" >> "$GITHUB_ENV"
+
+          echo \
+            "$HOME/android-sdk/cmdline-tools/latest/bin" \
+            >> "$GITHUB_PATH"
+
+          echo \
+            "$HOME/android-sdk/platform-tools" \
+            >> "$GITHUB_PATH"
+
+      - name: Compatibilidade Buildozer
+        run: |
+          mkdir -p "$HOME/android-sdk/tools/bin"
+
+          ln -sf \
+            "$HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager" \
+            "$HOME/android-sdk/tools/bin/sdkmanager"
+
+          ln -sf \
+            "$HOME/android-sdk/cmdline-tools/latest/bin/avdmanager" \
+            "$HOME/android-sdk/tools/bin/avdmanager"
+
+          sdkmanager --version
+
+      - name: Aceitar licenças Android
+        run: |
+          yes | sdkmanager --licenses || true
+
+      - name: Instalar componentes Android
+        run: |
+          sdkmanager \
+            "platform-tools" \
+            "platforms;android-36" \
+            "build-tools;37.0.0"
+
+      - name: Instalar Rust
+        run: |
+          curl https://sh.rust.rs -sSf | sh -s -- -y
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
+      - name: Instalar dependências Python
+        run: |
+          python -m pip install --upgrade pip setuptools
+          python -m pip install legacy-cgi
+          python -m pip install "cython==0.29.34"
+
+      - name: Instalar Buildozer
+        run: |
+          python -m pip install \
+            git+https://github.com/kivy/buildozer.git
+
+      - name: Preparar Python-for-Android
+        run: |
+          rm -rf "$HOME/p4a"
+
+          git clone \
+            --depth 1 \
+            --branch develop \
+            https://github.com/kivy/python-for-android.git \
+            "$HOME/p4a"
+
+          echo "Python-for-Android preparado:"
+          ls -la "$HOME/p4a" | head
+
+      - name: Configurar P4A preparado
+        run: |
+          cat >> buildozer.spec <<'SPEC'
+
+          p4a.source_dir = /home/runner/p4a
+          SPEC
+
+          echo "=== CONFIGURAÇÃO FINAL ==="
+          grep -E \
+            'package.name|package.domain|android.api|android.minapi|android.ndk|android.sdk_path|android.add_src|android.add_resources|android.gradle_dependencies|android.extra_manifest_application_arguments|p4a' \
+            buildozer.spec
+
+      - name: Verificar biblioteca
+        run: |
+          echo "=== DOCUMENTOS ==="
+
+          find biblioteca -type f \
+            \( -iname "*.pdf" \
+            -o -iname "*.doc" \
+            -o -iname "*.docx" \
+            -o -iname "*.htm" \
+            -o -iname "*.html" \
+            -o -iname "*.txt" \) \
+            | wc -l
+
+          echo "=== FILEPROVIDER ==="
+          find android_src android_res -type f -print
+
+          echo "=== TESTE PYTHON ==="
+          python -m py_compile main.py
+
+      - name: Limpar build anterior
+        run: |
+          rm -rf .buildozer
+          rm -rf bin
+
+      - name: Gerar APK
+        env:
+          P4A_ACCEPT_LICENSE: "1"
+        run: |
+          buildozer -v android debug
+
+      - name: Enviar APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Biblioteca-de-Casais-APK
+          path: bin/*.apk
+          if-no-files-found: error
